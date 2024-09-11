@@ -1,0 +1,84 @@
+---
+const { userId } = Astro.props;
+---
+
+<div class="flex flex-col p-4 bg-[#0b101b] h-auto rounded-lg shadow-lg justify-center items-center space-y-4 max-w-2xl mx-auto mt-10">
+    <h3 class="font-bold text-center text-white text-2xl">
+        Paste your link to shorten it
+    </h3>
+    <div class="w-full flex justify-center items-center bg-[#191e28] rounded-full border border-[#343e57]">
+        <img src="../../public/link.svg" alt="" class="w-6 h-6 mx-2">
+        <input id="url-input" type="text" class="flex-grow px-4 py-2 bg-[#191e28] text-white rounded-full focus:outline-none focus:ring-0" placeholder="Enter your link here">
+        <button id="shorten-button" class="bg-[#144EE3] text-white px-6 py-2 rounded-full hover:bg-[#0b101b] hover:text-gray-400 transition duration-300 ml-2">
+            <span class="hidden sm:inline">Shorten URL</span>
+            <span class="inline sm:hidden">➔</span>
+        </button>
+    </div>
+    <button id="paste-button" class="flex items-center bg-[#144EE3] text-white px-4 py-2 rounded-full hover:bg-[#0b101b] hover:text-gray-400 transition duration-300">
+        <img src="./public/clipboard.svg" alt="" class="w-5 h-5 mr-2 sm:mr-0">
+        <span class="hidden sm:inline">Paste from clipboard</span>
+    </button>
+    <div id="result-container" class="hidden flex-col items-center mt-4">
+        <p id="result-text" class="text-white mb-2"></p>
+        <button id="copy-button" class="bg-[#144EE3] text-white px-4 py-2 rounded-full hover:bg-[#0b101b] hover:text-gray-400 transition duration-300">Copy to clipboard</button>
+    </div>
+</div>
+
+<script>
+    function generateUUID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
+    let userId = localStorage.getItem('userId');
+    if (!userId) {
+        userId = generateUUID();
+        localStorage.setItem('userId', userId);
+    }
+
+    document.getElementById('paste-button').addEventListener('click', async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            (document.getElementById('url-input') as HTMLInputElement).value = text;
+        } catch (err) {
+            console.error('Failed to read clipboard contents:', err);
+        }
+    });
+
+    document.getElementById('shorten-button').addEventListener('click', async () => {
+        const urlInput = (document.getElementById('url-input') as HTMLInputElement).value;
+        if (urlInput) {
+            try {
+                const response = await fetch('http://127.0.0.1:5000/shorten', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ original_url: urlInput, user_id: userId })
+                });
+                const data = await response.json();
+                const resultText = document.getElementById('result-text');
+                const resultContainer = document.getElementById('result-container');
+                const copyButton = document.getElementById('copy-button');
+                const shortenedUrl = `http://127.0.0.1:5000/${data.short_code}`;
+                resultText.textContent = shortenedUrl;
+                resultContainer.classList.remove('hidden');
+
+                copyButton.addEventListener('click', async () => {
+                    try {
+                        await navigator.clipboard.writeText(resultText.textContent);
+                        alert('Copied to clipboard!');
+                    } catch (err) {
+                        console.error('Failed to copy text:', err);
+                    }
+                });
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        } else {
+            console.log('Please enter a URL');
+        }
+    });
+</script>

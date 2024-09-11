@@ -1,0 +1,41 @@
+---
+const { links = [] } = Astro.props;
+
+console.log(links);
+
+// Función para obtener la URL del favicon
+function getFaviconUrl(url) {
+    const domain = new URL(url).hostname;
+    return `https://www.google.com/s2/favicons?domain=${domain}`;
+}
+---
+
+<table class="w-full table-auto">
+    <thead class="bg-[#191e28]">
+        <tr>
+            <th class="px-4 py-2 border border-black">Short Link</th>
+            <th class="px-4 py-2 border border-black hidden sm:table-cell">Original Link</th>
+            <th class="px-4 py-2 border border-black hidden sm:table-cell">Date</th>
+        </tr>
+    </thead>
+    <tbody>
+        {links.length > 0 ? (
+            links.map(link => (
+                <tr class="bg-[#0f131d]">
+                    <td class="border border-black px-4 py-2 flex items-center">
+                        <a href={link.shortUrl} class="text-blue-500 hover:underline mr-2">{link.shortUrl}</a>
+                    </td>
+                    <td class="border border-black px-4 py-2 items-center hidden sm:table-cell">
+                        <img src={getFaviconUrl(link.originalUrl)} alt="Favicon" class="w-6 h-6 mr-2"/>
+                        <span>{link.originalUrl}</span>
+                    </td>
+                    <td class="border border-black px-4 py-2 hidden sm:table-cell">{link.date}</td>
+                </tr>
+            ))
+        ) : (
+            <tr class="bg-[#0f131d]">
+                <td class="border border-black px-4 py-2" colspan="3">No links available</td>
+            </tr>
+        )}
+    </tbody>
+</table>

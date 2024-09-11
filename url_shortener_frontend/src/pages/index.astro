@@ -1,0 +1,104 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Navbar from '../components/Navbar.astro';
+import Card from '../components/Card.astro';
+import Recent from '../components/Recent.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<Layout title="Cut My URL">
+    <div class="flex flex-col min-h-screen">
+        <Navbar />
+        <main class="flex flex-col items-center mx-auto p-4 w-full max-w-[calc(100%-2rem)] text-white text-xl leading-relaxed flex-grow">
+            <div class="w-full max-w-2xl pt-24">
+                <h1 class="bg-clip-text text-transparent bg-gradient-to-r from-[#144EE3] to-[#EB568E] text-5xl font-bold leading-tight text-center mb-6">
+                    Shorten your long and impractical URLs
+                </h1>
+                <Card />
+            </div>
+            <div class="w-full mt-4 pt-16" id="recent-links-container">
+                <Recent />
+            </div>
+        </main>
+        <Footer />
+    </div>
+</Layout>
+
+<script>
+    function generateUUID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
+    async function fetchLinks(userId) {
+        try {
+            const response = await fetch(`http://127.0.0.1:5000/links/${userId}`);
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Error fetching links:', error);
+            return [];
+        }
+    }
+
+    function getFaviconUrl(url) {
+        const domain = new URL(url).hostname;
+        return `https://www.google.com/s2/favicons?domain=${domain}`;
+    }
+
+    function formatDate(dateString) {
+        const date = new Date(dateString);
+        const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', year: 'numeric' };
+        return date.toLocaleDateString('es-ES', options).replace(/ de /g, '-');
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        let userId = localStorage.getItem('userId');
+        if (!userId) {
+            userId = generateUUID();
+            localStorage.setItem('userId', userId);
+        }
+
+        const links = await fetchLinks(userId);
+        const recentLinksContainer = document.getElementById('recent-links-container');
+
+        if (recentLinksContainer) {
+            recentLinksContainer.innerHTML = `
+				<table class="w-full table-auto">
+					<thead class="bg-[#191e28]">
+						<tr>
+							<th class="px-4 py-2 border border-black">Short Link</th>
+							<th class="px-4 py-2 border border-black hidden sm:table-cell">Original Link</th>
+							<th class="px-4 py-2 border border-black hidden sm:table-cell">Date</th>
+						</tr>
+					</thead>
+					<tbody>
+						${links.length > 0 ? (
+							links.map(link => `
+								<tr class="bg-[#0f131d]">
+									<td class="border border-black px-4 py-2 flex items-center">
+										<a href="${link.shortUrl}" class="text-blue-500 hover:underline mr-2">${link.shortUrl}</a>
+										<img src="${getFaviconUrl(link.originalUrl)}" alt="Favicon" class="w-6 h-6 sm:hidden"/>
+									</td>
+									<td class="border border-black px-4 py-2 flex items-center hidden sm:table-cell">
+										<div class="flex items-center">
+											<img src="${getFaviconUrl(link.originalUrl)}" alt="Favicon" class="w-6 h-6 mr-2"/>
+											<span>${link.originalUrl}</span>
+										</div>
+									</td>
+									<td class="border border-black px-4 py-2 hidden sm:table-cell">${formatDate(link.date)}</td>
+								</tr>
+							`).join('')
+						) : (
+							`<tr class="bg-[#0f131d]">
+								<td class="border border-black px-4 py-2" colspan="3">No links available</td>
+							</tr>`
+						)}
+					</tbody>
+				</table>
+            `;
+        }
+    });
+</script>
