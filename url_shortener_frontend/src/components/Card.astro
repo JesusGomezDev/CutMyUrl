@@ -62,7 +62,7 @@ const { userId } = Astro.props;
                 const resultText = document.getElementById('result-text');
                 const resultContainer = document.getElementById('result-container');
                 const copyButton = document.getElementById('copy-button');
-                const shortenedUrl = `http://127.0.0.1:5000/${data.short_code}`;
+                const shortenedUrl = `https://cutmyurl.link/${data.short_code}`;
                 resultText.textContent = shortenedUrl;
                 resultContainer.classList.remove('hidden');
 
