@@ -12,6 +12,7 @@ class Urls(Base):
     original_code: Mapped[str] = mapped_column()
     created_at: Mapped[str] = mapped_column()
     user_id: Mapped[Optional[str]] = mapped_column()
+    clicks: Mapped[int] = mapped_column(default=0, server_default="0")
 
     def __repr__(self) -> str:
-        return f"Urls(id={self.id!r}, short_code={self.short_code!r}, original_code={self.original_code!r}, created_at={self.created_at!r}, user_id={self.user_id!r})"
+        return f"Urls(id={self.id!r}, short_code={self.short_code!r}, original_code={self.original_code!r}, created_at={self.created_at!r}, user_id={self.user_id!r}, clicks={self.clicks!r})"

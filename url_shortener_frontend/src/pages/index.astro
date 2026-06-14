@@ -6,7 +6,7 @@ import Recent from '../components/Recent.astro';
 import Footer from '../components/Footer.astro';
 ---
 
-<Layout title="Cut My URL">
+<Layout title="Shorten this Link">
     <div class="flex flex-col min-h-screen">
         <Navbar />
         <main class="flex flex-col items-center mx-auto p-4 w-full max-w-[calc(100%-2rem)] text-white text-xl leading-relaxed flex-grow">
@@ -22,9 +22,21 @@ import Footer from '../components/Footer.astro';
         </main>
         <Footer />
     </div>
+
+    <div id="qr-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/70 p-4">
+        <div class="bg-[#0b101b] border border-[#343e57] rounded-lg p-6 flex flex-col items-center max-w-sm w-full relative">
+            <button id="qr-modal-close" type="button" class="absolute top-2 right-3 text-white text-3xl leading-none hover:text-gray-400" title="Close">&times;</button>
+            <h3 class="text-white text-lg font-bold mb-4">QR code</h3>
+            <img id="qr-modal-image" alt="QR code" class="w-56 h-56 bg-white p-2 rounded-lg" />
+            <p id="qr-modal-url" class="text-blue-400 text-sm mt-3 break-all text-center"></p>
+            <a id="qr-modal-download" download="qr-code.png" class="mt-4 bg-[#144EE3] text-white px-4 py-2 rounded-full hover:bg-[#0b101b] hover:text-gray-400 transition duration-300 cursor-pointer">Download QR</a>
+        </div>
+    </div>
 </Layout>
 
 <script>
+    import QRCode from 'qrcode';
+
     function generateUUID() {
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
             const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -34,7 +46,7 @@ import Footer from '../components/Footer.astro';
 
     async function fetchLinks(userId) {
         try {
-            const response = await fetch(`http://127.0.0.1:5000/links/${userId}`);
+            const response = await fetch(`${import.meta.env.PUBLIC_API_BASE_URL}/links/${userId}`);
             const data = await response.json();
             return data;
         } catch (error) {
@@ -54,14 +66,17 @@ import Footer from '../components/Footer.astro';
         return date.toLocaleDateString('es-ES', options).replace(/ de /g, '-');
     }
 
-    document.addEventListener('DOMContentLoaded', async () => {
+    function getUserId() {
         let userId = localStorage.getItem('userId');
         if (!userId) {
             userId = generateUUID();
             localStorage.setItem('userId', userId);
         }
+        return userId;
+    }
 
-        const links = await fetchLinks(userId);
+    async function renderRecentLinks() {
+        const links = await fetchLinks(getUserId());
         const recentLinksContainer = document.getElementById('recent-links-container');
 
         if (recentLinksContainer) {
@@ -71,6 +86,7 @@ import Footer from '../components/Footer.astro';
 						<tr>
 							<th class="px-4 py-2 border border-black">Short Link</th>
 							<th class="px-4 py-2 border border-black hidden sm:table-cell">Original Link</th>
+							<th class="px-4 py-2 border border-black">Clicks</th>
 							<th class="px-4 py-2 border border-black hidden sm:table-cell">Date</th>
 						</tr>
 					</thead>
@@ -79,8 +95,9 @@ import Footer from '../components/Footer.astro';
 							links.map(link => `
 								<tr class="bg-[#0f131d]">
 									<td class="border border-black px-4 py-2 flex items-center">
-										<a href="${link.shortUrl}" class="text-blue-500 hover:underline mr-2">${link.shortUrl}</a>
-										<img src="${getFaviconUrl(link.originalUrl)}" alt="Favicon" class="w-6 h-6 sm:hidden"/>
+										<a href="${link.shortUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline mr-2">${link.shortUrl}</a>
+										<img src="${getFaviconUrl(link.originalUrl)}" alt="Favicon" class="w-6 h-6 sm:hidden mr-2"/>
+										<button type="button" class="qr-btn ml-auto bg-[#144EE3] text-white text-sm px-3 py-1 rounded-full hover:bg-[#0b101b] hover:text-gray-400 transition duration-300" data-shorturl="${link.shortUrl}" title="Show QR code">QR</button>
 									</td>
 									<td class="border border-black px-4 py-2 flex items-center hidden sm:table-cell">
 										<div class="flex items-center">
@@ -88,17 +105,59 @@ import Footer from '../components/Footer.astro';
 											<span>${link.originalUrl}</span>
 										</div>
 									</td>
+									<td class="border border-black px-4 py-2 text-center">${link.clicks ?? 0}</td>
 									<td class="border border-black px-4 py-2 hidden sm:table-cell">${formatDate(link.date)}</td>
 								</tr>
 							`).join('')
 						) : (
 							`<tr class="bg-[#0f131d]">
-								<td class="border border-black px-4 py-2" colspan="3">No links available</td>
+								<td class="border border-black px-4 py-2" colspan="4">No links available</td>
 							</tr>`
 						)}
 					</tbody>
 				</table>
             `;
         }
+    }
+
+    const qrModal = document.getElementById('qr-modal');
+    const qrModalImage = document.getElementById('qr-modal-image') as HTMLImageElement;
+    const qrModalUrl = document.getElementById('qr-modal-url');
+    const qrModalDownload = document.getElementById('qr-modal-download') as HTMLAnchorElement;
+    const qrModalClose = document.getElementById('qr-modal-close');
+
+    async function openQrModal(shortUrl) {
+        const dataUrl = await QRCode.toDataURL(shortUrl, { width: 256, margin: 1 });
+        qrModalImage.src = dataUrl;
+        qrModalDownload.href = dataUrl;
+        qrModalUrl.textContent = shortUrl;
+        qrModal.classList.remove('hidden');
+        qrModal.classList.add('flex');
+    }
+
+    function closeQrModal() {
+        qrModal.classList.add('hidden');
+        qrModal.classList.remove('flex');
+    }
+
+    qrModalClose.addEventListener('click', closeQrModal);
+    qrModal.addEventListener('click', (e) => {
+        if (e.target === qrModal) closeQrModal();
     });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !qrModal.classList.contains('hidden')) closeQrModal();
+    });
+
+    const recentLinksContainer = document.getElementById('recent-links-container');
+    recentLinksContainer.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const btn = target.closest('.qr-btn') as HTMLElement | null;
+        if (btn && btn.dataset.shorturl) {
+            openQrModal(btn.dataset.shorturl);
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', renderRecentLinks);
+
+    document.addEventListener('link-created', renderRecentLinks);
 </script>

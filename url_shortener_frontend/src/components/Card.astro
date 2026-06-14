@@ -18,13 +18,20 @@ const { userId } = Astro.props;
         <img src="./public/clipboard.svg" alt="" class="w-5 h-5 mr-2 sm:mr-0">
         <span class="hidden sm:inline">Paste from clipboard</span>
     </button>
+    <p id="error-text" class="hidden text-red-400 text-base mt-2"></p>
     <div id="result-container" class="hidden flex-col items-center mt-4">
-        <p id="result-text" class="text-white mb-2"></p>
-        <button id="copy-button" class="bg-[#144EE3] text-white px-4 py-2 rounded-full hover:bg-[#0b101b] hover:text-gray-400 transition duration-300">Copy to clipboard</button>
+        <p id="result-text" class="text-white mb-2 break-all text-center"></p>
+        <img id="qr-image" alt="QR code for the shortened link" class="w-40 h-40 bg-white p-2 rounded-lg mb-3" />
+        <div class="flex flex-wrap gap-2 justify-center">
+            <button id="copy-button" class="bg-[#144EE3] text-white px-4 py-2 rounded-full hover:bg-[#0b101b] hover:text-gray-400 transition duration-300">Copy to clipboard</button>
+            <a id="download-qr" download="qr-code.png" class="bg-[#144EE3] text-white px-4 py-2 rounded-full hover:bg-[#0b101b] hover:text-gray-400 transition duration-300 cursor-pointer">Download QR</a>
+        </div>
     </div>
 </div>
 
 <script>
+    import QRCode from 'qrcode';
+
     function generateUUID() {
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
             const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -41,44 +48,90 @@ const { userId } = Astro.props;
     document.getElementById('paste-button').addEventListener('click', async () => {
         try {
             const text = await navigator.clipboard.readText();
-            (document.getElementById('url-input') as HTMLInputElement).value = text;
+            document.getElementById('url-input').value = text;
         } catch (err) {
             console.error('Failed to read clipboard contents:', err);
         }
     });
 
-    document.getElementById('shorten-button').addEventListener('click', async () => {
-        const urlInput = (document.getElementById('url-input') as HTMLInputElement).value;
-        if (urlInput) {
-            try {
-                const response = await fetch('http://127.0.0.1:5000/shorten', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ original_url: urlInput, user_id: userId })
-                });
-                const data = await response.json();
-                const resultText = document.getElementById('result-text');
-                const resultContainer = document.getElementById('result-container');
-                const copyButton = document.getElementById('copy-button');
-                const shortenedUrl = `https://cutmyurl.link/${data.short_code}`;
-                resultText.textContent = shortenedUrl;
-                resultContainer.classList.remove('hidden');
+    const urlInputEl = document.getElementById('url-input') as HTMLInputElement;
+    const resultText = document.getElementById('result-text');
+    const resultContainer = document.getElementById('result-container');
+    const copyButton = document.getElementById('copy-button');
+    const errorText = document.getElementById('error-text');
+    const qrImage = document.getElementById('qr-image') as HTMLImageElement;
+    const downloadQr = document.getElementById('download-qr') as HTMLAnchorElement;
 
-                copyButton.addEventListener('click', async () => {
-                    try {
-                        await navigator.clipboard.writeText(resultText.textContent);
-                        alert('Copied to clipboard!');
-                    } catch (err) {
-                        console.error('Failed to copy text:', err);
-                    }
-                });
-            } catch (error) {
-                console.error('Error:', error);
+    function showError(message) {
+        errorText.textContent = message;
+        errorText.classList.remove('hidden');
+        resultContainer.classList.add('hidden');
+        resultContainer.classList.remove('flex');
+    }
+
+    function hideResult() {
+        resultContainer.classList.add('hidden');
+        resultContainer.classList.remove('flex');
+    }
+
+    copyButton.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(resultText.textContent);
+            hideResult();
+        } catch (err) {
+            console.error('Failed to copy text:', err);
+        }
+    });
+
+    downloadQr.addEventListener('click', () => {
+        hideResult();
+    });
+
+    document.getElementById('shorten-button').addEventListener('click', async () => {
+        const urlInput = urlInputEl.value.trim();
+        if (!urlInput) {
+            showError('Please enter a URL.');
+            return;
+        }
+
+        try {
+            const response = await fetch(`${import.meta.env.PUBLIC_API_BASE_URL}/shorten`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ original_url: urlInput, user_id: userId })
+            });
+
+            if (response.status === 429) {
+                showError('Too many requests. Please wait a moment and try again.');
+                return;
             }
-        } else {
-            console.log('Please enter a URL');
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok || !data.short_code) {
+                showError(data.error || 'Could not shorten the URL. Please try again.');
+                return;
+            }
+
+            const shortenedUrl = `${import.meta.env.PUBLIC_SHORT_BASE_URL}/${data.short_code}`;
+            resultText.textContent = shortenedUrl;
+
+            const qrDataUrl = await QRCode.toDataURL(shortenedUrl, { width: 256, margin: 1 });
+            qrImage.src = qrDataUrl;
+            downloadQr.href = qrDataUrl;
+
+            errorText.classList.add('hidden');
+            resultContainer.classList.remove('hidden');
+            resultContainer.classList.add('flex');
+
+            urlInputEl.value = '';
+
+            document.dispatchEvent(new CustomEvent('link-created'));
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Network error. Please check your connection and try again.');
         }
     });
 </script>
